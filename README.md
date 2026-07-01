@@ -120,6 +120,6 @@ The project fulfilled all required criteria and additional bonus features and wa
 - Daniil Khanchych
 
 ---
-## Lessons
+## License
 
 This project is published only for portfolio purposes.

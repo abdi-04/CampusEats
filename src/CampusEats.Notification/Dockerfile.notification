@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-preview AS build
+WORKDIR /src
+
+COPY src/CampusEats.Notification/CampusEats.Notification.csproj src/CampusEats.Notification/
+RUN dotnet restore src/CampusEats.Notification/CampusEats.Notification.csproj
+
+COPY . .
+RUN dotnet publish src/CampusEats.Notification/CampusEats.Notification.csproj \
+    -c Release \
+    -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-preview
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "CampusEats.Notification.dll"]

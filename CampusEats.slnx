@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CampusEats.Core/CampusEats.Core.csproj" />
+    <Project Path="src/CampusEats.Infrastructure/CampusEats.Infrastructure.csproj" />
+    <Project Path="src/CampusEats.Notification/CampusEats.Notification.csproj" />
+    <Project Path="src/CampusEats.Web/CampusEats.Web.csproj" />
+  </Folder>
+
+  <Folder Name="/tests/CampusEats.Tests/">
+    <Project Path="tests/CampusEats.Tests/CampusEats.Tests.csproj" />
+  </Folder>
+
+  <Folder Name="/tests/CampusEats.IntegrationTests/">
+    <Project Path="tests/CampusEats.IntegrationTests/CampusEats.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

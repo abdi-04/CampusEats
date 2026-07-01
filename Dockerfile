@@ -6,16 +6,16 @@ WORKDIR /src
 ENV NUGET_FALLBACK_PACKAGES=""
  
 # Copy solution and project files first (layer cache for restore)
-COPY ["src/CampusEatsv2.Web/CampusEatsv2.Web.csproj", "src/CampusEatsv2.Web/"]
-COPY ["src/CampusEatsv2.Core/CampusEatsv2.Core.csproj", "src/CampusEatsv2.Core/"]
-COPY ["src/CampusEatsv2.Infrastructure/CampusEatsv2.Infrastructure.csproj", "src/CampusEatsv2.Infrastructure/"]
+COPY ["src/CampusEats.Web/CampusEats.Web.csproj", "src/CampusEats.Web/"]
+COPY ["src/CampusEats.Core/CampusEats.Core.csproj", "src/CampusEats.Core/"]
+COPY ["src/CampusEats.Infrastructure/CampusEats.Infrastructure.csproj", "src/CampusEats.Infrastructure/"]
 
 # Run from Web as this is a web app and it will find the other projects via project references
-RUN dotnet restore "src/CampusEatsv2.Web/CampusEatsv2.Web.csproj"
+RUN dotnet restore "src/CampusEats.Web/CampusEats.Web.csproj"
  
 # Copy everything else and publish
 COPY . .
-RUN dotnet publish "src/CampusEatsv2.Web/CampusEatsv2.Web.csproj" \
+RUN dotnet publish "src/CampusEats.Web/CampusEats.Web.csproj" \
     -c Release \
     -o /app/publish 
 
@@ -26,4 +26,4 @@ WORKDIR /app
 COPY --from=build /app/publish .
 
 # Set the entry point to run the app when the container starts
-ENTRYPOINT ["dotnet", "CampusEatsv2.Web.dll"]
+ENTRYPOINT ["dotnet", "CampusEats.Web.dll"]

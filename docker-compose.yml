@@ -70,7 +70,7 @@ services:
   notification:
     build:
       context: .
-      dockerfile: src/CampusEatsv2.Notification/Dockerfile.notification
+      dockerfile: src/CampusEats.Notification/Dockerfile.notification
       
     container_name: campuseats_notification
     restart: unless-stopped

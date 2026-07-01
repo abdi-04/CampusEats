@@ -1,0 +1,17 @@
+@rendermode InteractiveServer
+
+<div class="@($"{Color} rounded-2xl shadow p-5")">
+    <p class="text-sm text-gray-500 font-medium">
+        @Title
+    </p>
+
+    <p class="mt-2 text-2xl font-bold text-gray-900">
+        @Value
+    </p>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string Color { get; set; } = "bg-white";
+}

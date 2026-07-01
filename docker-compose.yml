@@ -1,0 +1,98 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: campuseats_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: campuseats
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: campuseatsdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campuseats -d campuseatsdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: campuseats_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5672:5672" # optional listening port
+      - "127.0.0.1:15672:15672" # optional UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    container_name: campuseats_smtp4dev
+    ports:
+      - "127.0.0.1:2525:25" # Integration test smtp port!
+      - "127.0.0.1:5000:80" # Web UI (local hostonly)
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: campuseats_web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=campuseatsdb;Username=campuseats;Password=changeme
+      RabbitMq__Host: rabbitmq
+      RabbitMq__User: guest
+      RabbitMq__Password: guest
+      Smtp__Host: smtp4dev
+      Smtp__Port: 25
+
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+    volumes:
+      - dataprotection_keys:/root/.aspnet/DataProtection-Keys
+
+  notification:
+    build:
+      context: .
+      dockerfile: src/CampusEatsv2.Notification/Dockerfile.notification
+      
+    container_name: campuseats_notification
+    restart: unless-stopped
+      
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    
+    environment:
+      RabbitMq__Host: rabbitmq
+      RabbitMq__User: guest
+      RabbitMq__Password: guest
+      Smtp__Host: smtp4dev
+      Smtp__Port: 25
+      Authentication__Google__ClientId: 275587108603-ne7uuok74c1b8p49tmorbe1roh818q7n.apps.googleusercontent.com
+      Authentication__Google__ClientSecret: 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
+        
+networks:
+  internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data:
+  dataprotection_keys:

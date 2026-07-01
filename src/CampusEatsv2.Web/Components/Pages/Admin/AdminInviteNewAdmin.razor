@@ -1,0 +1,188 @@
+@page "/admin/add-admin"
+@rendermode InteractiveServer
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.AdminServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using MediatR
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Invite new Admins</PageTitle>
+
+@if (AuthStateService.GetAdmin() is Admin loggedInAdmin)
+{
+    <div class="min-h-screen bg-gray-50 py-10 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div class="bg-red-600 text-white px-8 py-6 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold">Invite new Admins</h1>
+                        <p class="text-red-100 mt-1">Promote an existing customer or courier to an admin account.</p>
+                    </div>
+                </div>
+
+                <div class="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-1">
+                        <div class="bg-gray-50 rounded-xl border border-gray-200 p-6">
+                            <h2 class="text-xl font-semibold text-gray-800 mb-4">Search user</h2>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Source type</label>
+                                <select class="w-full border border-gray-300 rounded-lg px-4 py-3"
+                                        @bind="selectedSourceType">
+                                    <option value="@InviteAdminUser.SourceType.Customer">Customer</option>
+                                    <option value="@InviteAdminUser.SourceType.Courier">Courier</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Search by email</label>
+                                <input class="w-full border border-gray-300 rounded-lg px-4 py-3"
+                                       placeholder="Enter full or partial email"
+                                       @bind="searchEmail" />
+                            </div>
+
+                            <button class="w-full bg-red-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50"
+                                    @onclick="SearchUsersAsync"
+                                    disabled="@isLoading">
+                                @(isLoading ? "Searching..." : "Search users")
+                            </button>
+
+                            @if (!string.IsNullOrWhiteSpace(errorMessage))
+                            {
+                                <div class="mt-4 bg-red-100 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(successMessage))
+                            {
+                                <div class="mt-4 bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                                    @successMessage
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2">
+                        <div class="bg-white rounded-xl border border-gray-200">
+                            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                                <div>
+                                    <h2 class="text-xl font-semibold text-gray-800">Eligible users</h2>
+                                    <p class="text-sm text-gray-500">Only users who are not already admins are shown.</p>
+                                </div>
+                                <span class="text-sm text-gray-500">@eligibleUsers.Count result(s)</span>
+                            </div>
+
+                            @if (eligibleUsers.Count == 0)
+                            {
+                                <div class="p-8 text-center text-gray-500">
+                                    No eligible users found. Try searching for another email.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            @foreach (var user in eligibleUsers)
+                                            {
+                                                <tr>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@user.Email</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">@user.SourceType</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                        @(user.SourceType == InviteAdminUser.SourceType.Courier && !string.IsNullOrWhiteSpace(user.CourierStatus)
+                                                            ? user.CourierStatus
+                                                            : "Eligible")
+                                                    </td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                                        <button class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                                                                @onclick="() => NavigateToSetPassword(user)">
+                                                            Invite as admin
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="p-8 bg-red-100 min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+            <p class="text-gray-800 mb-6">You are not authorized to view this page. Please login as an admin.</p>
+            <a href="/admin/login" class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700">Back to Admin Login</a>
+        </div>
+    </div>
+}
+
+@code {
+    private string searchEmail = string.Empty;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private bool isLoading = false;
+
+    private InviteAdminUser.SourceType selectedSourceType = InviteAdminUser.SourceType.Customer;
+
+    private List<InviteAdminUser.AdminInviteCandidate> eligibleUsers = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SearchUsersAsync();
+    }
+
+    private async Task SearchUsersAsync()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        isLoading = true;
+
+        try
+        {
+            var result = await Mediator.Send(new InviteAdminUser.SearchEligibleAdminUsersQuery
+            {
+                SourceType = selectedSourceType,
+                SearchEmail = searchEmail
+            });
+
+            eligibleUsers = result;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToSetPassword(InviteAdminUser.AdminInviteCandidate user)
+    {
+        NavigationManager.NavigateTo($"/admin/add-admin/set-password/{user.SourceType}/{user.SourceId}");
+    }
+
+    private void Logout()
+    {
+        AuthStateService.Logout();
+        NavigationManager.NavigateTo("/");
+    }
+}

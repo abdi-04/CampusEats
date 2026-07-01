@@ -1,0 +1,336 @@
+@page "/customer/dashboard"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.CartServices
+@using CampusEatsv2.Infrastructure.Services.CustomerServices
+@using CampusEatsv2.Infrastructure.Services.OrderServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Customer Dashboard - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetCustomer() is not Customer customer)
+{
+    <div class="flex min-h-screen items-center justify-center bg-purple-100 p-8">
+        <div class="rounded-2xl bg-white p-8 text-center shadow-lg">
+            <p class="mb-6 text-gray-800">You must be logged in as a customer.</p>
+            <a href="/login" class="rounded-lg bg-purple-600 px-6 py-3 text-white hover:bg-purple-700">
+                Back to Login
+            </a>
+        </div>
+    </div>
+    return;
+}
+
+<div class="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 px-4 py-10">
+    <div class="mx-auto max-w-7xl space-y-12">
+
+        <!-- ================= ACTIVE ORDERS ================= -->
+        <section class="rounded-3xl bg-white p-6 shadow-xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                    Active Orders
+                </h2>
+                <span class="text-3xl font-bold text-purple-600">
+                    @ActiveOrders.Count
+                </span>
+            </div>
+
+            @if (!ActiveOrders.Any())
+            {
+                <p class="text-center text-gray-400 py-6">
+                    No active orders right now
+                </p>
+            }
+            else
+            {
+                <table class="w-full text-sm">
+                    <thead class="text-gray-500">
+                        <tr>
+                            <th class="py-2 text-left">Order</th>
+                            <th class="py-2 text-left">Status</th>
+                            <th class="py-2 text-right">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        @foreach (var order in ActiveOrders)
+                        {
+                            <tr class="hover:bg-gray-50">
+                                <td class="py-3 font-medium">
+                                    #@order.OrderId.ToString()[..8]
+                                </td>
+                                <td class="py-3 font-semibold text-yellow-600">
+                                    @order.Status
+                                </td>
+                                <td class="py-3 text-right font-medium">
+                                    @order.TotalAmount kr
+                                </td>
+                                <td class="py-3 text-right space-x-2">
+
+                                    <!-- Confirm Delivery (ONLY when PickedUp) -->
+                                    @if (order.Status == OrderStatus.PickedUp)
+                                    {
+                                        <button @onclick="() => GoToConfirm(order.OrderId)"
+                                                class="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700">
+                                            Confirm
+                                        </button>
+                                    }
+
+                                    <!-- Cancel (only before pickup) -->
+                                    <button @onclick="() => CancelOrderAsync(order)"
+                                            disabled="@(order.Status >= OrderStatus.PickedUp)"
+                                            class="rounded-lg bg-red-500 px-4 py-2 text-white
+                                                            hover:bg-red-600
+                                                            disabled:opacity-40
+                                                            disabled:cursor-not-allowed">
+                                        Cancel
+                                    </button>
+
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <!-- ================= MENU ================= -->
+        <section>
+            <div class="mb-6 text-white">
+                <h1 class="text-4xl font-bold">
+                    Pick something good, @customer.FullName
+                </h1>
+                <p class="mt-2 text-purple-100">
+                    Add items directly to your cart from the dashboard.
+                </p>
+            </div>
+
+            @if (IsLoading)
+            {
+                <p class="text-white">Loading menu…</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <p class="text-red-200">@ErrorMessage</p>
+            }
+            else
+            {
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    @foreach (var product in Products)
+                    {
+                        <article class="overflow-hidden rounded-3xl bg-white shadow-xl transition hover:shadow-2xl">
+
+                            @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
+                            {
+                                <img src="@product.ImageUrl"
+                                     alt="@product.Title"
+                                     class="h-52 w-full object-cover" />
+                            }
+                            else
+                            {
+                                <div class="flex h-52 items-center justify-center
+                                                        bg-gradient-to-br from-purple-100 to-indigo-100 text-6xl">
+                                    🍽️
+                                </div>
+                            }
+
+                            <div class="p-6">
+                                <div class="flex justify-between items-start mb-4">
+                                    <h3 class="text-xl font-bold text-gray-900">
+                                        @product.Title
+                                    </h3>
+                                    <span class="rounded-full bg-purple-100 px-4 py-2
+                                                         text-sm font-bold text-purple-700">
+                                        @product.Price.ToString("0.00") kr
+                                    </span>
+                                </div>
+
+                                <p class="text-sm text-gray-600 min-h-24">
+                                    @product.Description
+                                </p>
+
+                                <div class="mt-6 flex justify-between items-center
+                                                    border-t border-gray-100 pt-4">
+
+                                    @if (QuantityInCart(product.ProductId) == 0)
+                                    {
+                                        <button @onclick="() => AddToCartAsync(product)"
+                                                disabled="@IsProcessing(product.ProductId)"
+                                                class="rounded-full bg-purple-600 px-4 py-2
+                                                               text-white font-semibold
+                                                               hover:bg-purple-700
+                                                               disabled:opacity-40">
+                                            Add to Cart
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <div class="flex items-center gap-2">
+                                            <button @onclick="() => RemoveFromCartAsync(product)"
+                                                    disabled="@IsProcessing(product.ProductId)"
+                                                    class="h-9 w-9 rounded-full bg-purple-100
+                                                                   text-lg font-bold text-purple-700">
+                                                –
+                                            </button>
+
+                                            <span class="min-w-8 text-center
+                                                                     font-bold text-purple-800">
+                                                @QuantityInCart(product.ProductId)
+                                            </span>
+
+                                            <button @onclick="() => AddToCartAsync(product)"
+                                                    disabled="@IsProcessing(product.ProductId)"
+                                                    class="h-9 w-9 rounded-full bg-purple-600
+                                                                   text-lg font-bold text-white">
+                                                +
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+    </div>
+</div>
+
+@code {
+    // ================= ORDERS =================
+
+    private List<OrderDashboardDto> Orders = new();
+
+    private IReadOnlyList<OrderDashboardDto> ActiveOrders =>
+        Orders.Where(o =>
+            o.Status != OrderStatus.Delivered &&
+            o.Status != OrderStatus.Cancelled)
+        .ToList();
+
+    private async Task CancelOrderAsync(OrderDashboardDto order)
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        await Mediator.Send(new CancelOrder.CancelOrderCommand
+        {
+            OrderId = order.OrderId,
+            CustomerId = customer.CustomerId
+        });
+
+        await LoadOrdersAsync();
+    }
+
+    private void GoToConfirm(Guid orderId)
+    {
+        NavigationManager.NavigateTo($"/customer/confirm-delivery/{orderId}");
+    }
+
+    // ================= MENU + CART =================
+
+    private List<GetStore.ProductDto> Products = new();
+    private Dictionary<Guid, int> CartQuantities = new();
+    private HashSet<Guid> Processing = new();
+    private bool IsLoading;
+    private string? ErrorMessage;
+
+    private int QuantityInCart(Guid productId)
+        => CartQuantities.TryGetValue(productId, out var qty) ? qty : 0;
+
+    private bool IsProcessing(Guid productId)
+        => Processing.Contains(productId);
+
+    private async Task AddToCartAsync(GetStore.ProductDto product)
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        Processing.Add(product.ProductId);
+
+        await Mediator.Send(new AddCartItem.AddCartItemCommand
+        {
+            CustomerId = customer.CustomerId,
+            ProductId = product.ProductId,
+            Quantity = 1
+        });
+
+        Processing.Remove(product.ProductId);
+        await RefreshCartAsync();
+    }
+
+    private async Task RemoveFromCartAsync(GetStore.ProductDto product)
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        Processing.Add(product.ProductId);
+
+        await Mediator.Send(new RemoveCartItem.RemoveCartItemCommand
+        {
+            CustomerId = customer.CustomerId,
+            ProductId = product.ProductId,
+            Quantity = 1
+        });
+
+        Processing.Remove(product.ProductId);
+        await RefreshCartAsync();
+    }
+
+    // ================= INIT =================
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+        await LoadMenuAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        Orders = await Mediator.Send(new GetCustomerOrdersQuery.GetCustomerOrdersQueryRequest
+        {
+            CustomerId = customer.CustomerId
+        });
+    }
+
+    private async Task LoadMenuAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            Products = await Mediator.Send(new GetStore.GetStoreMenuQuery());
+            await RefreshCartAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task RefreshCartAsync()
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        var cart = await Mediator.Send(new ShowCustomerCart.ShowCustomerCartQuery
+        {
+            CustomerId = customer.CustomerId
+        });
+
+        CartQuantities = cart.Items
+            .ToDictionary(i => i.ProductId, i => i.Quantity);
+    }
+}

@@ -1,0 +1,44 @@
+﻿@* 
+    Main layout for the app.
+    - Shows the sidebar (NavMenu) and NotificationListener only when the user
+      is logged in and has completed their first-login password change.
+    - Shows the ProfileDropdown in the top bar under the same conditions.
+    - Always renders the current page content via @Body.
+    - Displays a dismissible error banner if an unhandled Blazor error occurs.
+*@
+
+@inherits LayoutComponentBase
+@inject AuthenticationStateService AuthStateService
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Web.Components.Notifications
+
+<div class="page">
+
+    @if (AuthStateService.IsAuthenticated && !AuthStateService.RequiresPasswordChange)
+    {
+        <NotificationListener />
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+    }
+
+    <main>
+        <div class="top-row px-4">
+            @if (AuthStateService.IsAuthenticated && !AuthStateService.RequiresPasswordChange)
+            {
+                <ProfileDropdown />
+            }
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <span class="dismiss">X</span>
+</div>

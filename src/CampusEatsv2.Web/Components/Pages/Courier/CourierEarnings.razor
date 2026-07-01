@@ -1,0 +1,191 @@
+@page "/courier/earnings"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.CourierServices
+@using CampusEatsv2.Infrastructure.Services.OrderServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Web.Components
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject IMediator Mediator
+
+<PageTitle>Courier Earnings</PageTitle>
+
+@if (AuthStateService.GetCourier() is not Courier courier)
+{
+    <div class="p-8 text-center">Unauthorized</div>
+    return;
+}
+
+<div class="min-h-screen bg-gradient-to-br from-green-600 to-emerald-700 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+
+        <h1 class="text-4xl font-bold text-white">
+            Earnings Overview!
+        </h1>
+
+        <div class="mb-4 flex gap-2 flex-wrap">
+            <button class="px-3 py-1 rounded @(SelectedMonth == null ? "bg-green-500 text-white" : "bg-gray-200")"
+                    @onclick="() => SelectedMonth = null">
+                All
+            </button>
+
+            @foreach (var month in AvailableMonths)
+            {
+                <button class="px-3 py-1 rounded @(SelectedMonth == month ? "bg-green-500 text-white" : "bg-gray-200")"
+                        @onclick="() => SelectedMonth = month">
+                    @month.ToString("MMM yyyy")
+                </button>
+            }
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard Title="Total Earnings"
+                      Value="@(TotalEarnings.ToString("0.00") + " kr")"
+                      Color="bg-white" />
+
+            <StatCard Title="This Month"
+                      Value="@(EarningsThisMonth.ToString("0.00") + " kr")"
+                      Color="bg-white" />
+
+            <StatCard Title="Deliveries"
+                      Value="@FilteredOrders.Count().ToString()"
+                      Color="bg-white" />
+
+            <StatCard Title="Tips Earned"
+                      Value="@(TotalTips.ToString("0.00") + " kr")"
+                      Color="bg-white" />
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h2 class="text-xl font-bold mb-4">
+                Monthly Earnings
+            </h2>
+
+            @foreach (var month in MonthlyEarnings)
+            {
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm font-medium">
+                        <span>@month.Month</span>
+                        <span>@month.Amount.ToString("0.00") kr</span>
+                    </div>
+
+                    <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-green-500"
+                             style="width:@month.Percentage%">
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h2 class="text-xl font-bold mb-4">
+                Delivered Orders
+            </h2>
+
+            <table class="w-full text-sm">
+                <thead class="text-gray-500 border-b">
+                    <tr>
+                        <th class="py-2 text-left">Order</th>
+                        <th class="py-2 text-left">Date</th>
+                        <th class="py-2 text-right">Earnings</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y">
+                    @foreach (var order in FilteredOrders.OrderByDescending(o => o.CreationTime))
+                    {
+                        <tr>
+                            <td class="py-2 font-mono">
+                                #@order.OrderId.ToString()[..8]
+                            </td>
+                            <td class="py-2">
+                                @order.CreationTime.ToString("dd MMM yyyy")
+                            </td>
+                            <td class="py-2 text-right font-semibold text-green-600">
+                                @(GetEarning(order).ToString("0.00")) kr
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    private List<OrderDashboardDto> Orders = new();
+    private DateTime? SelectedMonth = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Orders = await Mediator.Send(
+            new GetCourierOrdersQuery.GetCourierOrdersQueryRequest
+            {
+                CourierId = AuthStateService.GetCourier()!.CourierId
+            });
+    }
+    // Global function to show all orders
+    private IEnumerable<OrderDashboardDto> EarnedOrders =>
+        Orders.Where(o =>
+            o.Status == OrderStatus.Delivered ||
+            o.Status == OrderStatus.Cancelled);
+	// Filter Orders by month, if null show all
+    private IEnumerable<OrderDashboardDto> FilteredOrders =>
+        SelectedMonth is null
+            ? EarnedOrders
+            : EarnedOrders.Where(o =>
+                o.CreationTime.Year == SelectedMonth.Value.Year &&
+                o.CreationTime.Month == SelectedMonth.Value.Month);
+
+    private decimal GetEarning(OrderDashboardDto o)
+        => PaymentRules.CalculateCourierEarning(o.DeliveryFee, o.Tip, o.Status);
+
+    private decimal TotalEarnings =>
+        EarnedOrders.Sum(GetEarning);
+
+    private decimal EarningsThisMonth =>
+        EarnedOrders
+            .Where(o =>
+                o.CreationTime.Year == DateTime.UtcNow.Year &&
+                o.CreationTime.Month == DateTime.UtcNow.Month)
+            .Sum(GetEarning);
+
+    private decimal TotalTips =>
+        EarnedOrders.Sum(o => o.Tip);
+
+    private List<DateTime> AvailableMonths =>
+        EarnedOrders
+            .GroupBy(o => new DateTime(o.CreationTime.Year, o.CreationTime.Month, 1))
+            .Select(g => g.Key)
+            .OrderByDescending(x => x)
+            .ToList();
+
+    private IEnumerable<(string Month, decimal Amount, int Percentage)> MonthlyEarnings
+    {
+        get
+        {
+            var grouped = EarnedOrders
+                .GroupBy(o => new DateTime(o.CreationTime.Year, o.CreationTime.Month, 1))
+                .Select(g => new
+                {
+                    MonthDate = g.Key,
+                    MonthLabel = g.Key.ToString("MMMM yyyy"),
+                    Amount = g.Sum(GetEarning)
+                })
+                .OrderBy(x => x.MonthDate)
+                .ToList();
+
+            var max = grouped.Any() ? grouped.Max(x => x.Amount) : 1m;
+
+            return grouped.Select(x =>
+                (x.MonthLabel,
+                 x.Amount,
+                 (int)Math.Round((x.Amount / max) * 100)));
+        }
+    }
+}

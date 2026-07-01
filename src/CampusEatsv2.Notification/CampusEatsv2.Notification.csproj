@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-CampusEatsv2.Notification-5b654d43-ffb7-412c-817f-2fec24b69e4f</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference
+    Include="..\CampusEatsv2.Infrastructure\CampusEatsv2.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageReference Include="RazorLight" Version="2.3.1" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+  <None Include="Email\Templates\**\*.cshtml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

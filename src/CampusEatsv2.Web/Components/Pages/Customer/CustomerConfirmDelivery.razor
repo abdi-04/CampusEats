@@ -1,0 +1,238 @@
+@page "/customer/confirm-delivery/{OrderId:guid}"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.OrderServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using Microsoft.EntityFrameworkCore
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject CampusEatsv2.Infrastructure.AppDbContext DbContext
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+
+<PageTitle>Confirm Delivery - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetCustomer() is not Customer customer)
+{
+    <div class="flex min-h-screen items-center justify-center bg-purple-100">
+        <div class="rounded-2xl bg-white p-8 text-center shadow-lg">
+            <p class="mb-6">You must be logged in as a customer.</p>
+            <a href="/login"
+               class="rounded-lg bg-purple-600 px-6 py-3 text-white hover:bg-purple-700">
+                Back to login
+            </a>
+        </div>
+    </div>
+    return;
+}
+
+@if (order == null)
+{
+    <div class="flex min-h-screen items-center justify-center text-gray-400">
+        <p>Order not found or cannot be confirmed.</p>
+    </div>
+    return;
+}
+
+<div class="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 px-4 py-10">
+    <div class="mx-auto max-w-4xl space-y-8">
+
+        <!-- HEADER -->
+        <div class="text-white">
+            <h1 class="text-4xl font-bold">Confirm Delivery</h1>
+            <p class="mt-2 text-purple-100">
+                Review your order and complete delivery.
+            </p>
+        </div>
+
+        <!-- ORDER CARD -->
+        <section class="rounded-3xl bg-white p-6 shadow-xl space-y-6">
+
+            <!-- META -->
+            <div class="flex justify-between text-sm text-gray-500">
+                <span>Order #@order.OrderId.ToString()[..8]</span>
+                <span>@order.CreationTime.ToString("dd MMM yyyy • HH:mm")</span>
+            </div>
+
+            <hr />
+
+            <!-- ITEMS -->
+            <div class="space-y-6">
+                <h3 class="font-semibold text-gray-700">Items</h3>
+            
+                @foreach (var item in order.OrderItems)
+                {
+                    <article class="flex gap-6 rounded-3xl border bg-white p-6 shadow-sm">
+            
+                        <!-- IMAGE -->
+                        @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                        {
+                            <img src="@item.Product.ImageUrl"
+                                 alt="@item.Product.Title"
+                                 class="h-28 w-28 rounded-2xl object-cover" />
+                        }
+                        else
+                        {
+                            <div class="flex h-28 w-28 items-center justify-center
+                                        rounded-2xl bg-gradient-to-br
+                                        from-purple-100 to-indigo-100 text-4xl">
+                                🍔
+                            </div>
+                        }
+            
+                        <!-- CONTENT -->
+                        <div class="flex flex-1 flex-col justify-between">
+            
+                            <!-- TOP -->
+                            <div class="flex justify-between gap-4">
+            
+                                <div>
+                                    <h4 class="text-xl font-bold text-gray-900">
+                                        @item.Product?.Title
+                                    </h4>
+            
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        @item.Product?.Description
+                                    </p>
+                                </div>
+            
+                                <!-- TOTAL PRICE -->
+                                <span class="h-fit rounded-full bg-purple-100 px-5 py-2
+                                             text-lg font-bold text-purple-700">
+                                    @(item.Price * item.Quantity) kr
+                                </span>
+                            </div>
+            
+                            <!-- META -->
+                            <div class="mt-4 flex flex-wrap gap-3 text-sm">
+                                <span class="rounded-full bg-gray-100 px-4 py-2 font-medium">
+                                    Qty: @item.Quantity
+                                </span>
+            
+                                <span class="rounded-full bg-gray-100 px-4 py-2 font-medium">
+                                    Unit: @item.Price kr
+                                </span>
+            
+                                <span class="rounded-full bg-gray-100 px-4 py-2 font-mono text-xs">
+                                    ID: @item.ProductId.ToString()[..8]
+                                </span>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+
+            <!-- TIP SELECTION -->
+            <div>
+                <h3 class="mb-3 font-semibold text-gray-700">
+                    Tip your courier ❤️ (optional)
+                </h3>
+
+                <div class="flex gap-3">
+                    @foreach (var amount in new[] { 5m, 10m, 20m })
+                    {
+                        <button class="@(
+                            selectedTip == amount
+                                ? "rounded-full bg-purple-600 px-5 py-2 text-white font-bold"
+                                : "rounded-full bg-purple-100 px-5 py-2 text-purple-700 font-bold hover:bg-purple-200")"
+                                disabled="@isProcessing"
+                                @onclick="() => SelectTip(amount)">
+                            +@amount kr
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <!-- TOTAL -->
+            <div class="text-right space-y-1 pt-4 border-t">
+                <p>Items: @ItemsTotal.ToString("0.00") kr</p>
+                <p>Delivery: @order.DeliveryFee.ToString("0.00") kr</p>
+                <p>Tip: @selectedTip.ToString("0.00") kr</p>
+
+                <p class="text-2xl font-bold text-purple-700">
+                    Total: @(ItemsTotal + order.DeliveryFee + selectedTip) kr
+                </p>
+            </div>
+
+            <!-- CONFIRM -->
+            <button class="w-full rounded-full bg-purple-600 px-6 py-3
+                           text-lg font-semibold text-white
+                           hover:bg-purple-700
+                           disabled:opacity-40"
+                    disabled="@(!CanConfirm || isProcessing)"
+                    @onclick="ConfirmDeliveryAsync">
+                Confirm Delivery
+            </button>
+
+        </section>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    private Order? order;
+    private decimal selectedTip;
+    private bool isProcessing;
+
+    private bool CanConfirm =>
+        order?.Status == OrderStatus.PickedUp;
+
+    private decimal ItemsTotal =>
+        order?.OrderItems.Sum(i => i.Price * i.Quantity) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var customer = AuthStateService.GetCustomer();
+        if (customer is null)
+            return;
+
+        order = await DbContext.Orders
+            .Include(o => o.OrderItems)
+                .ThenInclude(i => i.Product)
+            .FirstOrDefaultAsync(o =>
+                o.OrderId == OrderId &&
+                o.CustomerId == customer.CustomerId &&
+                o.Status == OrderStatus.PickedUp);
+    }
+
+    private void SelectTip(decimal amount)
+    {
+        if (isProcessing) return;
+        selectedTip = amount;
+    }
+
+    private async Task ConfirmDeliveryAsync()
+    {
+        if (AuthStateService.GetCustomer() is not Customer customer)
+            return;
+
+        if (order is null || !CanConfirm)
+            return;
+
+        try
+        {
+            isProcessing = true;
+
+            // Mark order as delivered
+            await Mediator.Send(new ConfirmDeliveryCustomer.ConfirmDeliveryCustomerCommand
+            {
+                OrderId = order.OrderId,
+                CustomerId = customer.CustomerId,
+                Tip = selectedTip
+            });
+
+            await Task.Delay(600);
+            NavigationManager.NavigateTo("/customer/dashboard");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Delivery confirmation failed: {ex.Message}");
+            isProcessing = false;
+        }
+    }
+}

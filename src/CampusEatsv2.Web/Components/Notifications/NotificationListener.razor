@@ -1,0 +1,63 @@
+@implements IAsyncDisposable
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Nav
+
+@if (!string.IsNullOrWhiteSpace(NotificationMessage))
+{
+    <div class="fixed top-4 right-4 bg-white shadow-lg rounded-xl p-4 z-50">
+        @NotificationMessage
+    </div>
+}
+
+@code {
+
+    private HubConnection? hub;
+    private string? NotificationMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/notifications"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hub.On<Guid>("NewOrderAvailable", orderId =>
+        {
+            NotificationMessage =
+                $"New order available #{orderId.ToString()[..8]}";
+
+            _ = HideLater();
+            InvokeAsync(StateHasChanged);
+        });
+
+        hub.On<OrderStatusPayload>("OrderStatusChanged", payload =>
+        {
+            NotificationMessage =
+                $"Order status changed to {payload.NewStatus}";
+
+            _ = HideLater();
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hub.StartAsync();
+    }
+
+    private async Task HideLater()
+    {
+        await Task.Delay(5000);
+        NotificationMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null)
+            await hub.DisposeAsync();
+    }
+
+    public class OrderStatusPayload
+    {
+        public Guid OrderId { get; set; }
+        public string NewStatus { get; set; } = "";
+    }
+}

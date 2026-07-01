@@ -1,0 +1,75 @@
+@rendermode InteractiveServer
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager Navigation
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@implements IDisposable
+
+<div class="dropdown">
+    <button class="btn btn-link dropdown-toggle text-decoration-none"
+            type="button"
+            data-bs-toggle="dropdown">
+        @DisplayName
+    </button>
+
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li>
+            <button class="dropdown-item" @onclick="GoToSettings">
+                Settings
+            </button>
+        </li>
+
+        @if (IsCourier)
+        {
+            <li>
+                <button class="dropdown-item" @onclick="GoToEarnings">
+                    Earnings
+                </button>
+            </li>
+        }
+
+        <li><hr class="dropdown-divider" /></li>
+
+        <li>
+            <button class="dropdown-item text-danger" @onclick="Logout">
+                Logout
+            </button>
+        </li>
+    </ul>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthStateService.StateChanged += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string DisplayName => AuthStateService.CurrentUser switch
+    {
+        _ => "Profile"
+    };
+
+    private bool IsCourier => AuthStateService.CurrentRole == "Courier";
+
+    private void GoToSettings()
+        => Navigation.NavigateTo("/settings");
+
+    private void GoToEarnings()
+        => Navigation.NavigateTo("/courier/earnings");
+
+    private void Logout()
+    {
+        AuthStateService.Logout();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        AuthStateService.StateChanged -= OnAuthStateChanged;
+    }
+}

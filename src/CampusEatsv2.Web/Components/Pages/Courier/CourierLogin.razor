@@ -1,0 +1,57 @@
+@page "/courier/login"
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+<h2>Courier Login</h2>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<EditForm Model="model" OnValidSubmit="HandleLogin">
+    <div class="mb-3">
+        <label>Email</label>
+        <InputText class="form-control" @bind-Value="model.Email" />
+    </div>
+    <div class="mb-3">
+        <label>Password</label>
+        <InputText type="password" class="form-control" @bind-Value="model.Password" />
+    </div>
+    <button type="submit" class="btn btn-primary" disabled="@isLoading">
+        @(isLoading ? "Logging in..." : "Login")
+    </button>
+</EditForm>
+
+@code {
+    private LoginModel model = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/courier/login", model);
+            if (response.IsSuccessStatusCode)
+                Nav.NavigateTo("/courier/dashboard");
+            else
+            {
+                var err = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                // Surface the "not approved yet" message from the backend directly
+                errorMessage = err?.Error ?? "Login failed.";
+            }
+        }
+        catch { errorMessage = "An unexpected error occurred."; }
+        finally { isLoading = false; }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+    private record ErrorResponse(string Error);
+}

@@ -1,0 +1,138 @@
+@page "/login"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Infrastructure.Services.CustomerServices
+@using CampusEatsv2.Infrastructure.Services.CourierServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using FluentValidation
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+@inject AuthenticationStateService AuthStateService
+
+<PageTitle>Log In - Campus Eats</PageTitle>
+
+<div class="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-600 to-purple-800 px-4">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-2xl p-12">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800 text-center mb-2">Log In</h1>
+            <p class="text-gray-600 text-center mb-8">Sign in to your Campus Eats account</p>
+            
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                    @ErrorMessage
+                </div>
+            }
+
+            <EditForm Model="LoginData" OnValidSubmit="HandleLogin" FormName="LoginForm">
+                <div class="mb-5">
+                    <label for="role" class="block font-semibold text-gray-800 mb-2 text-sm">I am a:</label>
+                    <select id="role" @bind="LoginData.Role" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition-all bg-white">
+                        <option value="@UserRole.None">Select your role</option>
+                        <option value="@UserRole.Customer">Customer</option>
+                        <option value="@UserRole.Courier">Courier</option>
+                    </select>
+                </div>
+
+                <div class="mb-5">
+                    <label for="email" class="block font-semibold text-gray-800 mb-2 text-sm">Email Address</label>
+                    <InputText id="email" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition-all" @bind-Value="LoginData.Email" placeholder="Enter your email" />
+                </div>
+
+                <div class="mb-8">
+                    <label for="password" class="block font-semibold text-gray-800 mb-2 text-sm">Password</label>
+                    <InputText type="password" id="password" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition-all" @bind-Value="LoginData.Password" placeholder="Enter your password" />
+                </div>
+
+                <button type="submit" disabled="@IsLoading" class="w-full py-3 text-lg font-semibold text-white bg-gradient-to-r from-purple-600 to-purple-700 rounded-lg hover:shadow-lg hover:-translate-y-1 transition-all duration-300 disabled:opacity-50">
+                    @if (IsLoading)
+                    {
+                        <span>Logging in...</span>
+                    }
+                    else
+                    {
+                        <span>Log In</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="mt-6 pt-6 border-t border-gray-300 text-center space-y-3">
+                <p class="text-gray-600 text-sm">Don't have an account? <a href="/register" class="font-semibold text-purple-600 hover:text-purple-700 hover:underline">Register here</a></p>
+                <p class="text-gray-600 text-sm">Are you an admin? <a href="/admin/login" class="font-semibold text-red-600 hover:text-red-700 hover:underline">Admin Login</a></p>
+                <p><a href="/" class="font-semibold text-purple-600 hover:text-purple-700 hover:underline">Back to Home</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private class LoginModel
+    {
+        // Fix: Role should be enum not string
+        public UserRole Role { get; set; } = UserRole.None;
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    private LoginModel LoginData = new();
+    private string? ErrorMessage;
+    private bool IsLoading;
+
+    private async Task HandleLogin()
+    {
+        try
+        {
+            IsLoading = true;
+
+            if (LoginData.Role == UserRole.None)
+            {
+                ErrorMessage = "Please select your role.";
+                return;
+            }
+
+            if (LoginData.Role == UserRole.Customer)
+            {
+                var command = new LoginCustomer.LoginCustomerCommand 
+                { 
+                    Email = LoginData.Email, 
+                    Password = LoginData.Password 
+                };
+                var customer = await Mediator.Send(command);
+                AuthStateService.SetAuthenticatedCustomer(customer);
+                NavigationManager.NavigateTo("/customer/dashboard");
+                return;
+            }
+
+            if (LoginData.Role == UserRole.Courier)
+            {
+                var command = new LoginCourier.LoginCourierCommand 
+                { 
+                    Email = LoginData.Email, 
+                    Password = LoginData.Password 
+                };
+                var courier = await Mediator.Send(command);
+                AuthStateService.SetAuthenticatedCourier(courier);
+                NavigationManager.NavigateTo("/courier/dashboard");
+                return;
+            }
+
+            ErrorMessage = "Invalid role selected.";
+        }
+        catch (ValidationException ex)
+        {
+            ErrorMessage = "Validation failed: " + string.Join(", ", ex.Errors.Select(e => e.ErrorMessage));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}

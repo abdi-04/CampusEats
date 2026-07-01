@@ -1,0 +1,109 @@
+<!-- Basic settings page for users to change their password, email, etc. -->
+@page "/settings"
+@rendermode InteractiveServer
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+
+@if (AuthStateService.GetCustomer() is Customer customer)
+{
+    <div class="p-8 bg-gradient-to-br from-purple-600 to-purple-800 min-h-screen">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-4xl font-bold text-white mb-8">Account Settings</h1>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Profile Information</h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Email</p>
+                        <p class="text-gray-800">@customer.Email</p>
+                    </div>
+
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Full Name</p>
+                        <p class="text-gray-800">@customer.FullName</p>
+                    </div>
+
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Delivery Address</p>
+                        <p class="text-gray-800">
+                            @(string.IsNullOrEmpty(customer.DeliveryAddress)
+                                ? "Not set"
+                                : customer.DeliveryAddress)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (AuthStateService.GetAdmin() is Admin admin)
+{
+    <div class="p-8 bg-gradient-to-br from-red-600 to-red-800 min-h-screen">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-4xl font-bold text-white mb-8">Admin Settings</h1>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Profile Information</h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Email</p>
+                        <p class="text-gray-800">@admin.Email</p>
+                    </div>
+
+                    @if (admin.IsFirstLogin)
+                    {
+                        <div class="bg-yellow-100 border border-yellow-400 text-yellow-800 rounded p-3">
+                            ⚠️ Please change your password — this is your first login.
+                        </div>
+                    }
+
+                    <div class="pt-4">
+                        <button @onclick="GoToChangePassword"
+                                class="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 transition">
+                            Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (AuthStateService.GetCourier() is Courier courier)
+{
+    <div class="p-8 bg-gradient-to-br from-purple-600 to-purple-800 min-h-screen">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-4xl font-bold text-white mb-8">Account Settings</h1>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">Profile Information</h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Email</p>
+                        <p class="text-gray-800">@courier.Email</p>
+                    </div>
+
+                    <div>
+                        <p class="text-gray-600 text-sm font-semibold">Full Name</p>
+                        <p class="text-gray-800">@courier.FullName</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    NavigationManager.NavigateTo("/login");
+}
+
+@code {
+    private void GoToChangePassword()
+    {
+        NavigationManager.NavigateTo("/admin/change-password");
+    }
+}

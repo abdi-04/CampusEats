@@ -1,0 +1,472 @@
+@page "/customer/cart"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Infrastructure.Services.CustomerServices
+@using CampusEatsv2.Infrastructure.Services.CartServices
+@using CampusEatsv2.Infrastructure.Services.OrderServices
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Your Cart - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetCustomer() is Customer customer)
+{
+    <div class="min-h-screen bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 px-4 py-10">
+        <div class="mx-auto max-w-7xl">
+            <div class="mb-8 flex flex-col gap-4 rounded-3xl bg-white/10 p-6 text-white shadow-2xl backdrop-blur md:flex-row md:items-end md:justify-between">
+                <div>
+                    <p class="mb-2 text-sm font-semibold uppercase tracking-[0.3em] text-purple-100">Customer Cart</p>
+                    <h1 class="text-4xl font-bold">Your picks so far, @customer.FullName</h1>
+                    <p class="mt-3 max-w-2xl text-purple-100">
+                        This is the current cart overview slice. You can see what has been added, how many items you have, and the running subtotal.
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap gap-3">
+                    <a href="/customer/dashboard" class="rounded-full bg-white px-5 py-3 font-semibold text-purple-700 transition hover:-translate-y-0.5 hover:bg-purple-50">
+                        Back to Menu
+                    </a>
+                    <button @onclick="LoadCartAsync" class="rounded-full border border-white/40 px-5 py-3 font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10">
+                        Refresh Cart
+                    </button>
+                </div>
+            </div>
+
+            @if (IsLoading)
+            {
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-[2fr,1fr]">
+                    <div class="rounded-3xl bg-white p-6 shadow-xl">
+                        @for (var i = 0; i < 3; i++)
+                        {
+                            <div class="mb-4 flex items-center gap-4 border-b border-gray-100 pb-4 last:mb-0">
+                                <div class="h-20 w-20 animate-pulse rounded-2xl bg-purple-100"></div>
+                                <div class="flex-1 space-y-3">
+                                    <div class="h-5 w-1/3 animate-pulse rounded bg-purple-100"></div>
+                                    <div class="h-4 w-2/3 animate-pulse rounded bg-gray-100"></div>
+                                </div>
+                                <div class="h-10 w-20 animate-pulse rounded-full bg-purple-100"></div>
+                            </div>
+                        }
+                    </div>
+                    <div class="rounded-3xl bg-white p-6 shadow-xl">
+                        <div class="space-y-4">
+                            <div class="h-6 w-1/2 animate-pulse rounded bg-purple-100"></div>
+                            <div class="h-4 w-full animate-pulse rounded bg-gray-100"></div>
+                            <div class="h-4 w-5/6 animate-pulse rounded bg-gray-100"></div>
+                            <div class="h-12 w-full animate-pulse rounded-2xl bg-purple-100"></div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <div class="rounded-3xl border border-red-200 bg-white p-8 shadow-xl">
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-red-500">Cart unavailable</p>
+                    <h2 class="mt-2 text-2xl font-bold text-gray-900">We could not load your cart.</h2>
+                    <p class="mt-3 max-w-2xl text-gray-600">@ErrorMessage</p>
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <button @onclick="LoadCartAsync" class="rounded-full bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700">
+                            Try Again
+                        </button>
+                        <a href="/store/menu" class="rounded-full border border-gray-300 px-5 py-3 font-semibold text-gray-700 transition hover:bg-gray-50">
+                            Browse Menu
+                        </a>
+                    </div>
+                </div>
+            }
+            else if (CartItems.Count == 0)
+            {
+                <div class="rounded-3xl bg-white p-10 text-center shadow-xl">
+                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-purple-500">Your cart is empty</p>
+                    <h2 class="mt-3 text-3xl font-bold text-gray-900">Nothing here yet.</h2>
+                    <p class="mx-auto mt-3 max-w-xl text-gray-600">
+                        Start from the menu and add a few items. They will show up here with quantities and totals.
+                    </p>
+                    <a href="/customer/dashboard" class="mt-6 inline-flex rounded-full bg-purple-600 px-6 py-3 font-semibold text-white transition hover:bg-purple-700">
+                        Browse Menu
+                    </a>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(ActionMessage))
+                {
+                    <div class="@ActionBannerClass">
+                        <p class="text-sm font-semibold uppercase tracking-[0.2em]">@ActionLabel</p>
+                        <p class="mt-2 text-base">@ActionMessage</p>
+                    </div>
+                }
+
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-[2fr,1fr]">
+                    <div class="rounded-3xl bg-white p-6 shadow-xl">
+                        <div class="mb-5 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-purple-500">Items in cart</p>
+                                <h2 class="mt-1 text-2xl font-bold text-gray-900">@CartItems.Count unique item@(CartItems.Count == 1 ? string.Empty : "s")</h2>
+                            </div>
+                            <p class="rounded-full bg-purple-100 px-4 py-2 text-sm font-bold text-purple-700">@TotalQuantity total</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            @foreach (var item in CartItems)
+                            {
+                                <article class="flex flex-col gap-4 rounded-3xl border border-gray-100 p-4 transition hover:border-purple-200 hover:bg-purple-50/40 md:flex-row md:items-center">
+                                    @if (!string.IsNullOrWhiteSpace(item.Product?.ImageUrl))
+                                    {
+                                        <img src="@item.Product!.ImageUrl" alt="@GetProductTitle(item)" class="h-24 w-full rounded-2xl object-cover md:w-28" />
+                                    }
+                                    else
+                                    {
+                                        <div class="flex h-24 w-full items-center justify-center rounded-2xl bg-gradient-to-br from-purple-100 to-indigo-100 text-4xl md:w-28">
+                                            🍽️
+                                        </div>
+                                    }
+
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                            <div>
+                                                <h3 class="text-xl font-bold text-gray-900">@GetProductTitle(item)</h3>
+                                                <p class="mt-1 text-sm leading-6 text-gray-600">@GetProductDescription(item)</p>
+                                            </div>
+                                            <div class="shrink-0 rounded-full bg-purple-100 px-4 py-2 text-sm font-bold text-purple-700">
+                                                @LineTotal(item).ToString("0.00") kr
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                                            <span class="rounded-full bg-gray-100 px-3 py-1 font-medium">Qty: @item.Quantity</span>
+                                            <span class="rounded-full bg-gray-100 px-3 py-1 font-medium">Unit: @item.Price.ToString("0.00") kr</span>
+                                            <span class="rounded-full bg-gray-100 px-3 py-1 font-medium">ID: @item.ProductId.ToString()[..8]</span>
+                                        </div>
+
+                                        <div class="mt-4 flex flex-wrap gap-3 border-t border-gray-100 pt-4">
+                                            <div class="flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-2 py-2">
+                                                <button
+                                                    @onclick="() => UpdateQuantityAsync(item, -1)"
+                                                    disabled="@IsProcessing(item.ProductId)"
+                                                    class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-bold text-purple-700 transition hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50">
+                                                    -
+                                                </button>
+                                                <span class="min-w-12 text-center text-sm font-bold text-purple-800">@item.Quantity</span>
+                                                <button
+                                                    @onclick="() => UpdateQuantityAsync(item, 1)"
+                                                    disabled="@IsProcessing(item.ProductId)"
+                                                    class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-bold text-purple-700 transition hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50">
+                                                    +
+                                                </button>
+                                            </div>
+
+                                            <button
+                                                @onclick="() => RemoveItemAsync(item)"
+                                                disabled="@IsProcessing(item.ProductId)"
+                                                class="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60">
+                                                @(IsProcessing(item.ProductId) ? "Updating..." : "Remove")
+                                            </button>
+                                        </div>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    </div>
+
+                    <aside class="rounded-3xl bg-white p-6 shadow-xl">
+                        <p class="text-sm font-semibold uppercase tracking-[0.2em] text-purple-500">Order summary</p>
+                        <h2 class="mt-2 text-2xl font-bold text-gray-900">Cart totals</h2>
+
+                        <div class="mt-6 space-y-4 border-t border-gray-100 pt-6">
+                            <div class="flex items-center justify-between text-gray-600">
+                                <span>Unique items</span>
+                                <span class="font-semibold text-gray-900">@CartItems.Count</span>
+                            </div>
+                            <div class="flex items-center justify-between text-gray-600">
+                                <span>Total quantity</span>
+                                <span class="font-semibold text-gray-900">@TotalQuantity</span>
+                            </div>
+                            <div class="flex items-center justify-between text-gray-600">
+                                <span>Subtotal</span>
+                                <span class="font-semibold text-gray-900">@Subtotal.ToString("0.00") kr</span>
+                            </div>
+                            <div class="flex items-center justify-between text-gray-600">
+                                <span>Delivery fee</span>
+                                <span class="font-semibold text-gray-900">@DeliveryFee.ToString("0.00") kr</span>
+                            </div>
+                            <div class="flex items-center justify-between text-lg font-bold text-gray-900">
+                                <span>Total</span>
+                                <span>@GrandTotal.ToString("0.00") kr</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-6">
+                            <label for="paymentMethod" class="mb-2 block text-sm font-semibold text-gray-800">Payment method</label>
+                            <InputSelect id="paymentMethod" @bind-Value="SelectedPaymentMethod" class="w-full rounded-2xl border-2 border-gray-200 px-4 py-3 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-100">
+                                @foreach (var paymentMethod in Enum.GetValues<PaymentMethods>())
+                                {
+                                    <option value="@paymentMethod">@paymentMethod</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mt-8 space-y-3">
+                            <a href="/customer/dashboard" class="block w-full rounded-2xl bg-purple-600 px-5 py-3 text-center font-semibold text-white transition hover:bg-purple-700">
+                                Add More Items
+                            </a>
+                            <button
+                                @onclick="CheckoutAsync"
+                                disabled="@IsCheckingOut"
+                                class="block w-full rounded-2xl bg-emerald-600 px-5 py-3 text-center font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300">
+                                @(IsCheckingOut ? "Processing Checkout..." : "Complete Checkout")
+                            </button>
+                        </div>
+                    </aside>
+                </div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="flex min-h-screen items-center justify-center bg-purple-100 p-8">
+        <div class="rounded-2xl bg-white p-8 text-center shadow-lg">
+            <p class="mb-6 text-gray-800">You need to log in as a customer to view your cart.</p>
+            <a href="/login" class="rounded-lg bg-purple-600 px-6 py-3 text-white hover:bg-purple-700">Back to Login</a>
+        </div>
+    </div>
+}
+
+@code {
+    private Cart CurrentCart { get; set; } = new();
+    private HashSet<Guid> ProcessingProductIds { get; } = [];
+    private bool IsLoading { get; set; } = true;
+    private bool IsCheckingOut { get; set; }
+    private string? ErrorMessage { get; set; }
+    private bool ActionSucceeded { get; set; }
+    private string? ActionMessage { get; set; }
+    private PaymentMethods SelectedPaymentMethod { get; set; } = PaymentMethods.Vipps;
+
+    private IReadOnlyList<CartItem> CartItems => CurrentCart.Items;
+    private int TotalQuantity => CartItems.Sum(item => item.Quantity);
+    private decimal Subtotal => CartItems.Sum(LineTotal);
+    private decimal DeliveryFee => CartItems.Sum(item => item.Product?.DeliveryFee ?? 0);
+    private decimal GrandTotal => Subtotal + DeliveryFee;
+    private string ActionLabel => ActionSucceeded ? "Cart updated" : "Action failed";
+    private string ActionBannerClass => ActionSucceeded
+        ? "mb-6 rounded-3xl border border-emerald-200 bg-white p-5 text-emerald-700 shadow-lg"
+        : "mb-6 rounded-3xl border border-red-200 bg-white p-5 text-red-700 shadow-lg";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCartAsync();
+    }
+
+    private async Task LoadCartAsync()
+        => await LoadCartAsync(clearActionFeedback: false);
+
+    private async Task LoadCartAsync(bool clearActionFeedback)
+    {
+        var customer = AuthStateService.GetCustomer();
+        if (customer is null)
+        {
+            IsLoading = false;
+            ErrorMessage = null;
+            if (clearActionFeedback)
+            {
+                ActionMessage = null;
+            }
+            CurrentCart = new Cart();
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            ErrorMessage = null;
+            if (clearActionFeedback)
+            {
+                ActionMessage = null;
+            }
+
+            CurrentCart = await Mediator.Send(new ShowCustomerCart.ShowCustomerCartQuery
+            {
+                CustomerId = customer.CustomerId
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            CurrentCart = new Cart();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private static decimal LineTotal(CartItem item) => item.Price * item.Quantity;
+
+    private static string GetProductTitle(CartItem item)
+        => string.IsNullOrWhiteSpace(item.Product?.Title) ? "Menu item" : item.Product.Title;
+
+    private static string GetProductDescription(CartItem item)
+        => string.IsNullOrWhiteSpace(item.Product?.Description)
+            ? "Product details will appear here once available."
+            : item.Product.Description;
+
+    private bool IsProcessing(Guid productId) => ProcessingProductIds.Contains(productId);
+
+    private async Task UpdateQuantityAsync(CartItem item, int delta)
+    {
+        var customer = AuthStateService.GetCustomer();
+        if (customer is null)
+        {
+            ActionSucceeded = false;
+            ActionMessage = "Please log in again before updating your cart.";
+            return;
+        }
+
+        try
+        {
+            ProcessingProductIds.Add(item.ProductId);
+
+            if (delta > 0)
+            {
+                await Mediator.Send(new AddCartItem.AddCartItemCommand
+                {
+                    CustomerId = customer.CustomerId,
+                    ProductId = item.ProductId,
+                    Quantity = delta
+                });
+
+                ActionSucceeded = true;
+                ActionMessage = $"Increased {GetProductTitle(item)} to {item.Quantity + delta}.";
+            }
+            else
+            {
+                var removeAmount = Math.Abs(delta);
+                await Mediator.Send(new RemoveCartItem.RemoveCartItemCommand
+                {
+                    CustomerId = customer.CustomerId,
+                    ProductId = item.ProductId,
+                    Quantity = removeAmount
+                });
+
+                var newQuantity = item.Quantity - removeAmount;
+                ActionSucceeded = true;
+                ActionMessage = newQuantity > 0
+                    ? $"Reduced {GetProductTitle(item)} to {newQuantity}."
+                    : $"{GetProductTitle(item)} was removed from your cart.";
+            }
+
+            await LoadCartAsync(clearActionFeedback: false);
+        }
+        catch (Exception ex)
+        {
+            ActionSucceeded = false;
+            ActionMessage = $"Could not update {GetProductTitle(item)}: {ex.Message}";
+        }
+        finally
+        {
+            ProcessingProductIds.Remove(item.ProductId);
+        }
+    }
+
+    private async Task RemoveItemAsync(CartItem item)
+    {
+        var customer = AuthStateService.GetCustomer();
+        if (customer is null)
+        {
+            ActionSucceeded = false;
+            ActionMessage = "Please log in again before updating your cart.";
+            return;
+        }
+
+        try
+        {
+            ProcessingProductIds.Add(item.ProductId);
+
+            await Mediator.Send(new RemoveCartItem.RemoveCartItemCommand
+            {
+                CustomerId = customer.CustomerId,
+                ProductId = item.ProductId,
+                Quantity = item.Quantity
+            });
+
+            ActionSucceeded = true;
+            ActionMessage = $"{GetProductTitle(item)} was removed from your cart.";
+            await LoadCartAsync(clearActionFeedback: false);
+        }
+        catch (Exception ex)
+        {
+            ActionSucceeded = false;
+            ActionMessage = $"Could not remove {GetProductTitle(item)}: {ex.Message}";
+        }
+        finally
+        {
+            ProcessingProductIds.Remove(item.ProductId);
+        }
+    }
+
+    private async Task CheckoutAsync()
+    {
+        var customer = AuthStateService.GetCustomer();
+        if (customer is null)
+        {
+            ActionSucceeded = false;
+            ActionMessage = "Please log in again before checking out.";
+            return;
+        }
+
+        if (CartItems.Count == 0)
+        {
+            ActionSucceeded = false;
+            ActionMessage = "Add items to your cart before checking out.";
+            return;
+        }
+
+        try
+        {
+            IsCheckingOut = true;
+
+            var order = await Mediator.Send(new PlaceOrderService.PlaceOrderCommand
+            {
+                OrderId = Guid.NewGuid(),
+                CustomerId = customer.CustomerId,
+                DeliveryFee = DeliveryFee,
+                Payment = SelectedPaymentMethod,
+                PickupAddress = string.IsNullOrWhiteSpace(customer.DeliveryAddress)
+                    ? "Campus Eats Pickup Counter"
+                    : customer.DeliveryAddress
+            });
+
+            var paymentWasProcessed = await Mediator.Send(new PaymentService.ProcessPaymentCommand
+            {
+                OrderId = order.OrderId,
+                PaymentMethod = SelectedPaymentMethod,
+                Amount = order.TotalAmount
+            });
+
+            if (!paymentWasProcessed)
+            {
+                ActionSucceeded = false;
+                ActionMessage = "The order was created, but payment could not be processed.";
+                await LoadCartAsync(clearActionFeedback: false);
+                return;
+            }
+
+            ActionSucceeded = true;
+            ActionMessage = $"Checkout complete. Order {order.OrderId.ToString()[..8]} is now in progress.";
+            await LoadCartAsync(clearActionFeedback: false);
+        }
+        catch (Exception ex)
+        {
+            ActionSucceeded = false;
+            ActionMessage = $"Checkout failed: {ex.Message}";
+        }
+        finally
+        {
+            IsCheckingOut = false;
+        }
+    }
+}

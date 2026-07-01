@@ -1,0 +1,141 @@
+@page "/customer/apply-courier"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.CustomerServices
+@using CampusEatsv2.Infrastructure.Services.AdminServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Apply to Become a Courier</PageTitle>
+
+@if (AuthStateService.GetCustomer() is Customer customer)
+{
+    <div class="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-600 to-purple-800 px-4 py-12">
+        <div class="w-full max-w-2xl bg-white rounded-xl shadow-2xl p-10">
+
+            @if (existingStatus != null)
+            {
+                <div class="space-y-4">
+                    @if (!string.IsNullOrEmpty(SuccessMessage))
+                    {
+                        <div class="rounded-lg bg-green-50 border border-green-200 p-6 text-green-700 text-center text-lg font-semibold">
+                            @SuccessMessage
+                        </div>
+                    }
+
+                    @switch (existingStatus)
+                    {
+                        case CourierStatus.Pending:
+                            <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
+                                <span style="color: #854d0e; font-weight: 600;">Courier Application: Pending</span>
+                                <p class="text-sm text-yellow-700 mt-1">An admin will review your application shortly.</p>
+                            </div>
+                            break;
+                        case CourierStatus.Approved:
+                            <div class="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+                                <span style="color: #166534; font-weight: 600;">Courier Application: Approved</span>
+                                <p class="text-sm text-green-700 mt-1">You can now log in as a courier.</p>
+                            </div>
+                            break;
+                        case CourierStatus.Declined:
+                            <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-center">
+                                <span style="color: #991b1b; font-weight: 600;">Courier Application: Declined</span>
+                                <p class="text-sm text-red-700 mt-1">Your application was not approved by the admin.</p>
+                            </div>
+                            break;
+                    }
+
+                    <a href="/customer/dashboard"
+                       class="block w-full text-center bg-white text-purple-600 font-semibold px-5 py-3 rounded-lg border border-purple-600 hover:bg-purple-50 transition">
+                        Back to Dashboard
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="space-y-6">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">Become a Courier</h1>
+                        <p class="text-gray-600 mt-3">Submit your application below and our admin team will review your request.</p>
+                    </div>
+
+                    <div class="rounded-lg border border-gray-200 p-6">
+                        <p class="text-gray-700"><strong>Name:</strong> @customer.FullName</p>
+                        <p class="text-gray-700 mt-2"><strong>Email:</strong> @customer.Email</p>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(ErrorMessage))
+                    {
+                        <div class="rounded-lg bg-red-50 border border-red-200 p-5 text-red-700">
+                            @ErrorMessage
+                        </div>
+                    }
+
+                    <button @onclick="() => SubmitApplication(customer)"
+                            disabled="@IsLoading"
+                            class="w-full bg-purple-600 text-white font-semibold px-5 py-3 rounded-lg hover:bg-purple-700 transition disabled:opacity-50">
+                        @(IsLoading ? "Submitting..." : "Submit Courier Application")
+                    </button>
+
+                    <a href="/customer/dashboard"
+                       class="block w-full text-center bg-white text-purple-600 font-semibold px-5 py-3 rounded-lg border border-purple-600 hover:bg-purple-50 transition">
+                        Back to Dashboard
+                    </a>
+                </div>
+            }
+
+        </div>
+    </div>
+}
+else
+{
+    <div class="flex items-center justify-center min-h-screen bg-purple-100 px-4">
+        <div class="bg-white rounded-lg shadow-lg p-10 text-center">
+            <p class="text-gray-800 mb-6">
+                Please login as a customer to apply to become a courier.
+            </p>
+            <a href="/login"
+               class="bg-purple-600 text-white px-5 py-3 rounded-lg hover:bg-purple-700 transition">
+                Go to Login
+            </a>
+        </div>
+    </div>
+}
+
+@code {
+    private string? SuccessMessage;
+    private string? ErrorMessage;
+    private bool IsLoading;
+    private CourierStatus? existingStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateService.GetCustomer() is Customer customer)
+        {
+            var couriers = await Mediator.Send(new GetAllCouriers.GetAllCouriersQuery());
+            var existing = couriers.FirstOrDefault(c => c.Email == customer.Email);
+            existingStatus = existing?.Status;
+        }
+    }
+
+    private async Task SubmitApplication(Customer customer)
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        try
+        {
+            await Mediator.Send(new ApplyAsCourier.ApplyAsCourierCommand
+            {
+                CustomerId = customer.CustomerId
+            });
+            existingStatus = CourierStatus.Pending;
+            SuccessMessage = "Your courier application has been submitted!";
+        }
+        catch (InvalidOperationException ex) { ErrorMessage = ex.Message; }
+        catch { ErrorMessage = "An unexpected error occurred. Please try again."; }
+        finally { IsLoading = false; }
+    }
+}

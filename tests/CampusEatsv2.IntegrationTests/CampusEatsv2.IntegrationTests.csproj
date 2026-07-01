@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Test project -->
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Library</OutputType>
+
+    <!-- Prevent parallel execution (shared RabbitMQ / static hooks) -->
+    <ParallelizeTestCollections>false</ParallelizeTestCollections>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="NUnit" Version="4.2.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CampusEatsv2.Infrastructure\CampusEatsv2.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\CampusEatsv2.Notification\CampusEatsv2.Notification.csproj" />
+  </ItemGroup>
+
+</Project>

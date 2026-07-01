@@ -1,0 +1,116 @@
+@*
+    - renders the sidebar navigation.
+    - Exits early (renders nothing) if the user needs to change their password.
+    - Always shows the CampusEats logo/brand link pointing to the role-specific home page.
+    - Renders a different set of nav links depending on the user's role:
+        * Customer: Notification Bell, View Cart, Order History, Become a Courier
+        * Admin:    Orders, Manage Couriers, Manage Products, Invite Admin
+        * Courier:  Notification Bell, Order History, View Earnings
+*@
+
+
+@inject AuthenticationStateService AuthStateService
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Web.Components.Notifications
+
+@if (AuthStateService.RequiresPasswordChange)
+{
+    return;
+}
+
+<!-- SIDEBAR LOGO (always visible) -->
+<div class="sidebar-logo px-3 py-4">
+    <NavLink href="@HomeLink" class="navbar-brand text-white fw-bold">
+        CampusEats
+    </NavLink>
+</div>
+
+<nav class="nav flex-column px-3">
+    <!-- HOME -->
+    <div class="nav-item mb-2">
+        <NavLink class="nav-link text-white" href="@HomeLink" Match="NavLinkMatch.All">
+            Home
+        </NavLink>
+    </div>
+
+    <!-- CUSTOMER MENU -->
+    @if (AuthStateService.CurrentRole == "Customer")
+    {
+        <!-- Notification Bell -->
+        <div class="nav-item mb-3">
+            <NotificationBell />
+        </div>
+
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/customer/cart">
+                View Cart
+            </NavLink>
+        </div>
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/customer/history">
+                Order History
+            </NavLink>
+        </div>
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/customer/apply-courier">
+                Become a Courier
+            </NavLink>
+        </div>
+    }
+
+    <!-- ADMIN MENU -->
+    @if (AuthStateService.CurrentRole == "Admin")
+    {
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/admin/orders">
+                Orders
+            </NavLink>
+        </div>
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/admin/couriers">
+                Manage Couriers
+            </NavLink>
+        </div>
+        <div class="nav-item mb-3">
+            <NavLink class="nav-link text-white" href="/admin/manage-products">
+                Manage Products
+            </NavLink>
+        </div>
+        <div class="nav-item mb-4">
+            <NavLink class="nav-link text-white" href="/admin/add-admin">
+                Invite Admin
+            </NavLink>
+        </div>
+    }
+
+    <!-- COURIER MENU -->
+    @if (AuthStateService.CurrentRole == "Courier")
+    {
+        <!-- Notification Bell -->
+        <div class="nav-item mb-3">
+            <NotificationBell />
+        </div>
+
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/courier/history">
+                Order History
+            </NavLink>
+        </div>
+        <div class="nav-item mb-2">
+            <NavLink class="nav-link text-white" href="/courier/earnings">
+                View Earnings
+            </NavLink>
+        </div>
+    }
+</nav>
+
+@code {
+    private string HomeLink => AuthStateService.CurrentRole switch
+    {
+        "Admin"    => "/admin/dashboard",
+        "Customer" => "/customer/dashboard",
+        "Courier"  => "/courier/dashboard",
+        _          => "/home"
+    };
+}

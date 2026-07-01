@@ -1,0 +1,137 @@
+@page "/admin/couriers"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.AdminServices
+@inject IMediator Mediator
+
+<PageTitle>Manage Couriers</PageTitle>
+
+<div class="p-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Manage Couriers</h1>
+
+    @if (couriers == null)
+    {
+        <p class="text-gray-500">Loading...</p>
+    }
+    else if (!couriers.Any())
+    {
+        <p class="text-gray-500">No couriers registered yet.</p>
+    }
+    else
+    {
+        @* Filter tabs *@
+        <div class="flex gap-3 mb-6">
+            @foreach (var tab in Enum.GetValues<CourierStatus>().Cast<CourierStatus?>().Prepend(null))
+            {
+                <button class="px-4 py-2 rounded-full text-sm font-medium transition
+                               @(activeFilter == tab ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")"
+                        @onclick="() => activeFilter = tab">
+                    @(tab == null ? "All" : tab.ToString())
+                    <span class="ml-1 text-xs">(@GetCount(tab))</span>
+                </button>
+            }
+        </div>
+
+        <table class="w-full text-sm text-left border border-gray-200 rounded-lg overflow-hidden">
+            <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3">Name</th>
+                    <th class="px-4 py-3">Email</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Registered</th>
+                    <th class="px-4 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                @foreach (var c in FilteredCouriers)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium text-gray-800">@c.FullName</td>
+                        <td class="px-4 py-3 text-gray-600">@c.Email</td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded-full text-xs font-semibold @GetBadgeClass(c.Status)">
+                                @c.Status
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-500">
+                            @c.CreatedAt.ToLocalTime().ToString("dd MMM yyyy")
+                        </td>
+                        <td class="px-4 py-3">
+                            @if (c.Status == CourierStatus.Pending)
+                            {
+                                <button class="px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition me-2"
+                                        @onclick="() => Approve(c.CourierId)">
+                                    Approve
+                                </button>
+                                <button class="px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
+                                        @onclick="() => Decline(c.CourierId)">
+                                    Decline
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="text-gray-400 text-xs">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (!string.IsNullOrEmpty(feedback))
+    {
+        <div class="mt-4 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
+            @feedback
+        </div>
+    }
+</div>
+
+@code {
+    private List<Courier>? couriers;
+    private string? feedback;
+    private CourierStatus? activeFilter = null; // null = All
+
+    protected override async Task OnInitializedAsync()
+    {
+        couriers = await Mediator.Send(new GetAllCouriers.GetAllCouriersQuery());
+    }
+
+    private IEnumerable<Courier> FilteredCouriers =>
+        activeFilter == null ? couriers! : couriers!.Where(c => c.Status == activeFilter);
+
+    private int GetCount(CourierStatus? status) =>
+        status == null ? couriers!.Count : couriers!.Count(c => c.Status == status);
+
+    private async Task Approve(Guid courierId)
+    {
+        try
+        {
+            await Mediator.Send(new ApproveCourierRegistration.ApproveCourierRegistrationCommand { CourierId = courierId });
+            var courier = couriers!.First(c => c.CourierId == courierId);
+            courier.Status = CourierStatus.Approved;
+            feedback = $"✓ {courier.FullName} has been approved.";
+        }
+        catch (Exception ex) { feedback = $"Error: {ex.Message}"; }
+    }
+
+    private async Task Decline(Guid courierId)
+    {
+        try
+        {
+            await Mediator.Send(new DeclineCourierRegistration.DeclineCourierRegistrationCommand { CourierId = courierId });
+            var courier = couriers!.First(c => c.CourierId == courierId);
+            courier.Status = CourierStatus.Declined;
+            feedback = $"✗ {courier.FullName} has been declined.";
+        }
+        catch (Exception ex) { feedback = $"Error: {ex.Message}"; }
+    }
+
+    private string GetBadgeClass(CourierStatus status) => status switch
+    {
+        CourierStatus.Approved => "bg-green-100 text-green-700",
+        CourierStatus.Declined => "bg-red-100 text-red-700",
+        _ => "bg-yellow-100 text-yellow-700"
+    };
+}

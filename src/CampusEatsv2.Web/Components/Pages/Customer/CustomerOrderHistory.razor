@@ -1,0 +1,185 @@
+@page "/customer/history"
+@rendermode InteractiveServer
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Core.Filters
+@using CampusEatsv2.Web.Components
+@using CampusEatsv2.Infrastructure.Services.CustomerServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Customer Order History - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetCustomer() is Customer customer)
+{
+    <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 p-6">
+
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                Orders History
+            </h3>
+
+            <div class="flex gap-3 text-sm">
+                <span class="px-3 py-1 rounded bg-gray-100">
+                    Total: @AllOrders.Count()
+                </span>
+
+                <span class="px-3 py-1 rounded bg-purple-100 text-purple-700">
+                    This month: @ThisMonthOrders.Count()
+                </span>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-100 mb-4"></div>
+
+        <div class="flex gap-3 mb-4">
+
+            <button class="px-4 py-2 rounded-full text-sm font-medium transition
+                                   @(activeFilter == TimeFilter.All
+                                                                ? "bg-purple-600 text-white"
+                                                                : "bg-gray-100 text-gray-600 hover:bg-gray-200")"
+                                                                                                                @onclick="() => activeFilter = TimeFilter.All">
+                                                                                                            All Orders (@AllOrders.Count())
+                                                                                                        </button>
+
+            <button class="px-4 py-2 rounded-full text-sm font-medium transition
+                                    @(activeFilter == TimeFilter.ThisMonth
+                                                                ? "bg-purple-600 text-white"
+                                                                : "bg-gray-100 text-gray-600 hover:bg-gray-200")"
+                @onclick="() => activeFilter = TimeFilter.ThisMonth">
+            This Month (@ThisMonthOrders.Count())
+        </button>
+        </div>
+
+        @if (!FilteredOrders.Any())
+        {
+            <div class="text-center text-gray-400 py-6">
+                <p class="text-sm">No orders found</p>
+            </div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+
+                    <thead class="text-gray-500">
+                        <tr>
+                            <th class="pb-2 font-medium">Order ID</th>
+                            <th class="pb-2 font-medium">Courier</th>
+                            <th class="pb-2 font-medium">Status</th>
+                            <th class="pb-2 font-medium">Date</th>
+                            <th class="pb-2 font-medium text-right">Total</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y text-gray-700">
+
+                @foreach (var order in FilteredOrders)
+                {
+                            <tr class="hover:bg-gray-50 transition">
+
+                                <td class="py-3">
+                                    #@order.OrderId.ToString()[..8]
+                                </td>
+
+                                <td class="py-3">
+                                    @(order.CourierId == Guid.Empty
+                                                            ? "Unassigned"
+                                                            : order.CourierId.ToString()[..8])
+                                </td>
+
+                                <td class="py-3">
+                                    <span class="@GetStatusClass(order.Status) font-medium">
+                                        @order.Status
+                                    </span>
+                                </td>
+
+                                <td class="py-3 text-gray-500">
+                                    @order.CreationTime.ToString("dd MMM yyyy HH:mm")
+                                </td>
+
+                                <td class="py-3 text-right font-medium">
+                                    @order.TotalAmount kr
+                                </td>
+                            </tr>
+                                }
+
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="p-8 bg-purple-100 min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+            <p class="text-gray-800 mb-6">
+                You are not authorized to view this page. Please login as a customer.
+            </p>
+            <a href="/login"
+               class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700">
+                Back to Login
+            </a>
+        </div>
+    </div>
+}
+
+@code {
+
+    private List<OrderDashboardDto> orders = new();
+	private TimeFilter activeFilter = TimeFilter.All;
+
+    // sorted newest first
+    private IEnumerable<OrderDashboardDto> AllOrders =>
+        orders.OrderByDescending(o => o.CreationTime);
+
+    // Active orders
+    private IEnumerable<OrderDashboardDto> ActiveOrders =>
+        orders.Where(o =>
+            o.Status == OrderStatus.Submitted ||
+            o.Status == OrderStatus.PickedUp ||
+            o.Status == OrderStatus.Accepted);
+
+    private IEnumerable<OrderDashboardDto> FilteredOrders =>
+        (activeFilter == TimeFilter.All ? orders : ThisMonthOrders)
+            .OrderByDescending(o => o.CreationTime);
+
+    // History
+    private IEnumerable<OrderDashboardDto> OrderHistory =>
+        orders.Where(o =>
+            o.Status == OrderStatus.Delivered ||
+            o.Status == OrderStatus.Cancelled);
+
+	// This month orders
+    private IEnumerable<OrderDashboardDto> ThisMonthOrders =>
+        orders.Where(o =>
+            o.CreationTime.Month == DateTime.UtcNow.Month &&
+            o.CreationTime.Year == DateTime.UtcNow.Year);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var customer = AuthStateService.GetCustomer();
+
+        if (customer == null)
+            return;
+
+        orders = await Mediator.Send(new GetCustomerOrdersQuery.GetCustomerOrdersQueryRequest
+        {
+            CustomerId = customer.CustomerId
+        });
+    }
+
+    private string GetStatusClass(OrderStatus status) => status switch
+    {
+        OrderStatus.Delivered => "text-green-600",
+        OrderStatus.Cancelled => "text-red-500",
+        OrderStatus.PickedUp => "text-blue-600",
+        OrderStatus.Accepted => "text-indigo-600",
+        OrderStatus.Submitted => "text-yellow-600",
+        _ => "text-gray-600"
+    };
+}

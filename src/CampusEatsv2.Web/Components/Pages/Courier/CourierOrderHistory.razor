@@ -1,0 +1,191 @@
+@page "/courier/history"
+@rendermode InteractiveServer
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Core.Filters
+@using CampusEatsv2.Web.Components
+@using CampusEatsv2.Infrastructure.Services.CourierServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+@inject IMediator Mediator
+
+<PageTitle>Courier Order History</PageTitle>
+
+@if (AuthStateService.GetCourier() is Courier courier)
+{
+    <div class="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 p-6">
+
+        <!-- HEADER -->
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                My Deliveries
+            </h3>
+
+            <div class="flex gap-3 text-sm">
+                <span class="px-3 py-1 rounded bg-gray-100">
+                    Total: @AllOrders.Count()
+                </span>
+
+                <span class="px-3 py-1 rounded bg-purple-100 text-purple-700">
+                    This month: @ThisMonthOrders.Count()
+                </span>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-100 mb-4"></div>
+
+        <!-- FILTER BUTTONS -->
+        <div class="flex gap-3 mb-4">
+
+            <button class="px-4 py-2 rounded-full text-sm font-medium transition
+                               @(activeFilter == TimeFilter.All
+                                                    ? "bg-purple-600 text-white"
+                                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200")"
+                                                                                                    @onclick="() => activeFilter = TimeFilter.All">
+                                                                                                All (@AllOrders.Count())
+                                                                                            </button>
+
+            <button class="px-4 py-2 rounded-full text-sm font-medium transition
+                               @(activeFilter == TimeFilter.ThisMonth
+                                                    ? "bg-purple-600 text-white"
+                                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200")"
+                @onclick="() => activeFilter = TimeFilter.ThisMonth">
+            This Month (@ThisMonthOrders.Count())
+        </button>
+
+        </div>
+
+        <!-- EMPTY -->
+    @if (!FilteredOrders.Any())
+        {
+            <div class="text-center text-gray-400 py-6">
+                <p class="text-sm">No deliveries yet</p>
+            </div>
+        }
+        else
+        {
+            <!-- TABLE -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+
+                    <thead class="text-gray-500">
+                        <tr>
+                            <th class="pb-2 font-medium">Order</th>
+                            <th class="pb-2 font-medium">Customer</th>
+                            <th class="pb-2 font-medium">Status</th>
+                            <th class="pb-2 font-medium">Date</th>
+                            <th class="pb-2 font-medium text-right">Total</th>
+                            <th class="pb-2 font-medium text-right">Earnings</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y text-gray-700">
+
+                        @foreach (var order in FilteredOrders)
+                        {
+                            <tr class="hover:bg-gray-50 transition">
+
+                                <td class="py-3">
+                                    #@order.OrderId.ToString()[..8]
+                                </td>
+
+                                <td class="py-3">
+                                    @order.CustomerId.ToString()[..8]
+                                </td>
+
+                                <td class="py-3">
+                                    <span class="@GetStatusClass(order.Status) font-medium">
+                                        @order.Status
+                                    </span>
+                                </td>
+
+                                <td class="py-3 text-gray-500">
+                                    @order.CreationTime.ToString("dd MMM yyyy HH:mm")
+                                </td>
+
+                                <td class="py-3 text-right">
+                                    @order.TotalAmount kr
+                                </td>
+
+                                <td class="py-3 text-right font-semibold text-green-600">
+                                    @(PaymentRules.CalculateCourierEarning(order.DeliveryFee, order.Tip, order.Status).ToString("0.00")) kr
+
+                                    @if (order.Status == OrderStatus.Delivered)
+                                    {
+                                        <span class="ml-1 text-xs text-green-500">
+                                            (Includes tip)
+                                        </span>
+                                    }
+                                    @if (order.Status != OrderStatus.Delivered && order.Tip > 0)
+                                    {
+                                        <span class="ml-1 text-xs text-yellow-500">
+                                            (Tip not included)
+                                        </span>
+                                    }
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="p-8 bg-purple-100 min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+            <p class="text-gray-800 mb-6">
+                You are not authorized to view this page. Please login as a courier.
+            </p>
+            <a href="/login"
+               class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700">
+                Back to Login
+            </a>
+        </div>
+    </div>
+}
+
+@code {
+
+    private List<OrderDashboardDto> orders = new();
+    private TimeFilter activeFilter = TimeFilter.All;
+
+    private IEnumerable<OrderDashboardDto> AllOrders =>
+        orders.OrderByDescending(o => o.CreationTime);
+
+    private IEnumerable<OrderDashboardDto> ThisMonthOrders =>
+        orders.Where(o =>
+            o.CreationTime.Month == DateTime.UtcNow.Month &&
+            o.CreationTime.Year == DateTime.UtcNow.Year);
+
+    private IEnumerable<OrderDashboardDto> FilteredOrders =>
+        (activeFilter == TimeFilter.All ? orders : ThisMonthOrders)
+            .OrderByDescending(o => o.CreationTime);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var courier = AuthStateService.GetCourier();
+        if (courier == null)
+            return;
+
+        orders = await Mediator.Send(new GetCourierOrdersQuery.GetCourierOrdersQueryRequest
+        {
+            CourierId = courier.CourierId
+        });
+    }
+
+    private string GetStatusClass(OrderStatus status) => status switch
+    {
+        OrderStatus.Delivered => "text-green-600",
+        OrderStatus.Cancelled => "text-red-500",
+        OrderStatus.PickedUp => "text-blue-600",
+        OrderStatus.Accepted => "text-indigo-600",
+        OrderStatus.Submitted => "text-yellow-600",
+        _ => "text-gray-600"
+    };
+}

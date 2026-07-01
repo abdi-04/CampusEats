@@ -1,0 +1,69 @@
+@page "/courier/registration-pending"
+@rendermode InteractiveServer
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@inject AuthenticationStateService AuthStateService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Registration Pending - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetCourier() is Courier courier)
+{
+    <div class="p-8 bg-gradient-to-br from-blue-600 to-blue-800 min-h-screen flex items-center justify-center">
+        <div class="max-w-md bg-white rounded-lg shadow-2xl p-12 text-center">
+            <div class="mb-6">
+                <svg class="w-16 h-16 mx-auto text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">Registration Pending</h1>
+            <p class="text-gray-600 mb-6">
+                Thank you for registering as a courier! Your registration is now pending admin approval.
+            </p>
+
+            <div class="bg-blue-50 rounded-lg p-6 mb-6">
+                <p class="text-gray-600 mb-2">
+                    <span class="font-semibold">Email:</span> @courier.Email
+                </p>
+                <p class="text-gray-600 mb-2">
+                    <span class="font-semibold">Name:</span> @courier.FullName
+                </p>
+                <p class="text-gray-600">
+                    <span class="font-semibold">Status:</span> 
+                    <span class="text-yellow-600 font-semibold">@courier.Status</span>
+                </p>
+            </div>
+
+            <p class="text-gray-600 mb-8">
+                An administrator will review your registration and approve or decline it shortly. You'll receive an email notification once a decision has been made.
+            </p>
+
+            <div class="space-y-3">
+                <a href="/login" class="block w-full bg-blue-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-blue-700 transition">
+                    Return to Login
+                </a>
+                <button @onclick="Logout" class="block w-full bg-white text-blue-600 font-semibold px-4 py-3 rounded-lg border-2 border-blue-600 hover:bg-blue-50 transition">
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="p-8 bg-blue-100 min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+            <p class="text-gray-800 mb-6">Invalid access. Please register or login first.</p>
+            <a href="/register" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">Go to Register</a>
+        </div>
+    </div>
+}
+
+@code {
+    private void Logout()
+    {
+        AuthStateService.Logout();
+        NavigationManager.NavigateTo("/");
+    }
+}

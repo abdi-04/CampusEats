@@ -1,0 +1,154 @@
+@page "/admin/dashboard"
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Infrastructure.Services.OrderServices
+@using CampusEatsv2.Infrastructure.Services.AdminServices
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Web.Components.Pages.SharedPages
+@using MediatR
+
+@inject AuthenticationStateService AuthStateService
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+
+<PageTitle>Admin Dashboard - Campus Eats</PageTitle>
+
+@if (AuthStateService.GetAdmin() is not Admin admin)
+{
+    <div class="min-h-screen flex items-center justify-center bg-red-100">
+        <div class="bg-white p-8 rounded-xl shadow text-center">
+            <p class="mb-6">Unauthorized</p>
+            <a href="/admin/login"
+               class="bg-red-600 text-white px-6 py-2 rounded">
+                Back to Login
+            </a>
+        </div>
+    </div>
+    return;
+}
+
+<div class="min-h-screen bg-gradient-to-br from-red-600 to-red-800 p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+
+        <h1 class="text-4xl font-bold text-white">
+            Admin Revenue Overview!
+        </h1>
+
+        <!-- SUMMARY CARDS -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <StatCard Title="Platform Revenue"
+                      Value="@($"{TotalPlatformRevenue:0.00} kr")"
+                      Color="bg-white" />
+
+            <StatCard Title="Courier Payouts"
+                      Value="@($"{TotalCourierRevenue:0.00} kr")"
+                      Color="bg-white" />
+
+            <StatCard Title="Gross Delivered Value"
+                      Value="@($"{GrossValue:0.00} kr")"
+                      Color="bg-white" />
+
+            <StatCard Title="Delivered Orders"
+                      Value="@DeliveredOrders.Count().ToString()"
+                      Color="bg-white" />
+        </div>
+
+        <!-- REVENUE SPLIT BAR -->
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h2 class="text-xl font-bold mb-4">Revenue Split</h2>
+
+            <div class="flex justify-between text-sm mb-2">
+                <span>Platform</span>
+                <span>Courier</span>
+            </div>
+
+            <div class="h-4 bg-gray-100 rounded-full overflow-hidden flex">
+                <div class="bg-red-500"
+                     style="width:@PlatformSharePercentage%">
+                </div>
+                <div class="bg-green-500"
+                     style="width:@CourierSharePercentage%">
+                </div>
+            </div>
+        </div>
+
+        <!-- DELIVERED ORDERS TABLE -->
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h2 class="text-xl font-bold mb-4">Delivered Orders</h2>
+
+            <table class="w-full text-sm">
+                <thead class="text-gray-500 border-b">
+                    <tr>
+                        <th class="py-2 text-left">Order</th>
+                        <th class="py-2 text-right">Delivery Fee</th>
+                        <th class="py-2 text-right">Courier</th>
+                        <th class="py-2 text-right">Platform</th>
+                        <th class="py-2 text-right">Tip</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y">
+                    @foreach (var order in DeliveredOrders)
+                    {
+                        <tr>
+                            <td class="py-2 font-mono">
+                                #@order.OrderId.ToString()[..8]
+                            </td>
+
+                            <td class="py-2 text-right">
+                                @order.DeliveryFee.ToString("0.00") kr
+                            </td>
+
+                            <td class="py-2 text-right text-green-600 font-medium">
+                                @(PaymentRules.CalculateCourierEarning(
+                                    order.DeliveryFee,
+                                    order.Tip,
+                                    order.Status
+                                ).ToString("0.00")) kr
+                            </td>
+
+                            <td class="py-2 text-right text-red-600 font-medium">
+                                @(PaymentRules.CalculatePlatformFee(order.DeliveryFee)
+                                    .ToString("0.00")) kr
+                            </td>
+
+                            <td class="py-2 text-right">
+                                @order.Tip.ToString("0.00") kr
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Order> Orders = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Orders = await Mediator.Send(new GetAllOrdersQuery.GetAllOrdersQueryRequest());
+    }
+
+    private IEnumerable<Order> DeliveredOrders =>
+        Orders.Where(o => o.Status == OrderStatus.Delivered);
+
+    private decimal TotalCourierRevenue =>
+        DeliveredOrders.Sum(o =>
+            PaymentRules.CalculateCourierEarning(o.DeliveryFee, o.Tip, o.Status));
+
+    private decimal TotalPlatformRevenue =>
+        DeliveredOrders.Sum(o =>
+            PaymentRules.CalculatePlatformFee(o.DeliveryFee));
+
+    private decimal GrossValue =>
+        TotalCourierRevenue + TotalPlatformRevenue;
+
+    private int PlatformSharePercentage =>
+        GrossValue == 0 ? 0 : (int)((TotalPlatformRevenue / GrossValue) * 100);
+
+    private int CourierSharePercentage =>
+        100 - PlatformSharePercentage;
+}

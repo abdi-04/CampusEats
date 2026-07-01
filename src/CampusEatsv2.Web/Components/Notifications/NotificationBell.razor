@@ -1,0 +1,191 @@
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+@using CampusEatsv2.Core.Models
+@using CampusEatsv2.Core.Interfaces
+@using CampusEatsv2.Infrastructure.Services.SharedServices
+@using CampusEatsv2.Web.Components.Notifications
+@using Microsoft.AspNetCore.SignalR.Client
+
+@inject AuthenticationStateService AuthStateService
+@inject INotificationStore NotificationStore
+@inject NavigationManager Nav
+
+
+<div class="relative inline-block">
+    <button @onclick="ToggleDropdown"
+            title="Notifications"
+            class="relative flex items-center px-2 py-1 hover:opacity-80 transition">
+
+        <span class="text-xl text-white">
+            Notifications
+        </span>
+
+        @if (UnreadCount > 0)
+        {
+            <span class="
+                absolute -top-1 -right-1
+                min-w-[18px] h-[18px]
+                px-1
+                flex items-center justify-center
+                rounded-full
+                bg-red-500 text-white
+                text-[10px] font-bold">
+                @BadgeLabel
+            </span>
+        }
+    </button>
+
+    @if (isOpen && Notifications.Any())
+    {
+        <div class="
+                absolute left-0 mt-2
+                w-72
+                bg-white
+                rounded-xl
+                shadow-2xl
+                z-50
+                overflow-hidden">
+
+            <div class="
+                    px-4 py-3
+                    text-sm font-bold text-gray-700
+                    border-b bg-gray-50">
+                Notifications
+            </div>
+
+            @foreach (var notif in Notifications)
+            {
+                <button @onclick="() => Navigate(notif)"
+                        class="
+                            block w-full text-left
+                            px-4 py-3
+                            border-b
+                            transition
+                            hover:bg-gray-50
+                            @(notif.IsRead
+                                                ? "bg-white"
+                                                : "bg-blue-50 border-l-4 border-l-blue-500 hover:bg-blue-100")">
+
+            <div class="text-xs text-gray-500 mb-1">
+                @notif.RecipientLabel
+            </div>
+
+                    <div class="text-sm font-semibold text-gray-900">
+                        @notif.Status
+                    </div>
+
+                    <div class="text-[11px] text-gray-400 mt-1">
+                        @notif.Timestamp.ToString("dd MMM • HH:mm")
+                    </div>
+
+                </button>
+                }
+        </div>
+    }
+    else if (isOpen)
+    {
+        <div class="
+                absolute left-0 mt-2
+                w-72
+                bg-white
+                rounded-xl
+                shadow-2xl
+                z-50
+                overflow-hidden">
+
+            <div class="
+                    px-4 py-3
+                    text-sm font-bold text-gray-700
+                    border-b bg-gray-50">
+                Notifications
+            </div>
+
+            <div class="px-4 py-6 text-center text-sm text-gray-400">
+                No notifications yet
+            </div>
+
+        </div>
+    }
+
+</div>
+@code {
+    private HubConnection? hub;
+    private bool isOpen = false;
+    private List<AppNotification> Notifications = new();
+
+    private Guid? CurrentUserId =>
+        AuthStateService.CurrentRole switch
+        {
+            "Customer" => AuthStateService.GetCustomer()?.CustomerId,
+            "Courier"  => AuthStateService.GetCourier()?.CourierId,
+            _          => null
+        };
+
+    private int UnreadCount => NotificationStore.GetUnreadCount(CurrentUserId ?? Guid.Empty);
+
+    private string BadgeLabel => UnreadCount > 9 ? "9+" : UnreadCount.ToString();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentUserId is null) return;
+
+        // Load existing notifications from store
+        Notifications = NotificationStore
+            .GetForUser(CurrentUserId.Value)
+            .OrderByDescending(x => x.Timestamp)
+            .ToList();
+
+        // Connect to SignalR hub
+        hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/notifications"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        // Join own user group so SignalR can route messages here
+        hub.On("connected", async () =>
+        {
+            await hub.InvokeAsync("JoinUserGroup", CurrentUserId.Value.ToString());
+        });
+
+        hub.On<object>("NewOrderAvailable", _ =>
+        {
+            Notifications = NotificationStore.GetForUser(CurrentUserId!.Value);
+            InvokeAsync(StateHasChanged);
+        });
+
+        hub.On<object>("OrderStatusChanged", _ =>
+        {
+            Notifications = NotificationStore.GetForUser(CurrentUserId!.Value);
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hub.StartAsync();
+
+        // Manually join after start (Blazor Server - connection is immediate)
+        await hub.InvokeAsync("JoinUserGroup", CurrentUserId.Value.ToString());
+    }
+
+    private void ToggleDropdown()
+    {
+        isOpen = !isOpen;
+
+        if (isOpen && CurrentUserId.HasValue)
+        {
+            NotificationStore.MarkAllRead(CurrentUserId.Value);
+            Notifications = NotificationStore.GetForUser(CurrentUserId.Value);
+        }
+    }
+
+    private void Navigate(AppNotification notif)
+    {
+        isOpen = false;
+        Nav.NavigateTo($"/order/{notif.OrderId}");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null)
+            await hub.DisposeAsync();
+    }
+}

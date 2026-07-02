@@ -6,6 +6,19 @@ Developed as part of **DAT240: Software Engineering** at the **University of Sta
 
 ---
 
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Blazor Server, Tailwind CSS |
+| Backend | C#, .NET, MediatR, SignalR |
+| Database | PostgreSQL (EF Core) |
+| Messaging | RabbitMQ |
+| Email | SMTP / Smtp4dev |
+| Container | Docker |
+
+---
+
 ## Features
 
 - **Customers** browse products, place orders, track delivery status in real time, tip couriers, and confirm delivery

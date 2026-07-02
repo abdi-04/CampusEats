@@ -14,7 +14,7 @@ Developed as part of **DAT240: Software Engineering** at the **University of Sta
 - **Real-time notifications** via SignalR — no page refresh needed
 - **Email confirmations** via SMTP
 
-
+---
 
 
 ## Academic Context
@@ -39,3 +39,4 @@ The project fulfilled all required criteria and additional bonus features and wa
 ## License
 
 This project is published only for portfolio purposes.
+If you would like access to a working version of the application, please contact me (the project owner).

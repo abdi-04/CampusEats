@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: campuseats
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: campuseatsdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -23,8 +23,8 @@ services:
       - "127.0.0.1:5672:5672" # optional listening port
       - "127.0.0.1:15672:15672" # optional UI
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -51,12 +51,14 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=campuseatsdb;Username=campuseats;Password=changeme
+      ConnectionStrings__DefaultConnection: ${DB_CONNECTION_STRING}
       RabbitMq__Host: rabbitmq
       RabbitMq__User: guest
       RabbitMq__Password: guest
       Smtp__Host: smtp4dev
       Smtp__Port: 25
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET}
 
     depends_on:
       db:
@@ -81,13 +83,12 @@ services:
     
     environment:
       RabbitMq__Host: rabbitmq
-      RabbitMq__User: guest
-      RabbitMq__Password: guest
+      RabbitMq__User: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
       Smtp__Host: smtp4dev
       Smtp__Port: 25
-      Authentication__Google__ClientId: 275587108603-ne7uuok74c1b8p49tmorbe1roh818q7n.apps.googleusercontent.com
-      Authentication__Google__ClientSecret: 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
-        
+
+
 networks:
   internal:
     driver: bridge
